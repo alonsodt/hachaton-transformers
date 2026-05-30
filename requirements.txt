@@ -1,0 +1,11 @@
+# Nucleo (suficiente para baselines + envio)
+numpy
+pandas
+scikit-learn
+openpyxl        # leer/escribir la plantilla .xlsx
+
+# Fase 2 (modelos con features). OJO: con Python 3.14 puede que no haya wheels;
+# si fallan, usar HistGradientBoostingRegressor de scikit-learn (ya incluido).
+# lightgbm
+# statsmodels
+# torch
