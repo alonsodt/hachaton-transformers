@@ -1,15 +1,3 @@
-# Datos del reto: NUNCA al repo
-data_raw/
-data/
-*.parquet
-
-# Envios generados (se versiona a mano el que se sube)
-submissions/*.xlsx
-!submissions/.gitkeep
-
-# Salidas de experimentos (la tabla se resume en RESULTS.md)
-experiments/baselines_*.csv
-
 # Python
 __pycache__/
 *.py[cod]
