@@ -67,6 +67,23 @@ Mezclar la tasa estructural (43 años) con la del régimen reciente, ancladas al
 - **Veredicto operativo:** mejora real pero pequeña. NO merece un intento dedicado;
   llevarla como 2º envío en lugar de drift_full (es gratis y estrictamente mejor).
 
+## Fase 3 — Redes neuronales y Transformer (HECHO; ver `deep_20260530.md`)
+
+`python -m src.deep_models` — DLinear + Transformer (con positional encoding),
+forecast DIRECTO del drift, walk-forward fiel, comparados vs drift_full.
+
+| Modelo | MACRO (6 oríg.) | vs drift_full | gana a drift_full |
+|--------|----------------:|--------------:|-------------------|
+| ens_drift+tr | 78.384 | −0,0% | 4/6 |
+| **drift_full** | 78.397 | — | — |
+| transformer | 78.726 | +0,4% | 4/6 |
+| dlinear | 80.542 | +2,7% | 1/6 |
+| naive_flat | 91.439 | +16,6% | 0/6 |
+
+**Veredicto: las redes NO baten a `drift_full` de forma fiable** (empate técnico;
+pierden en el origen volátil). Confirma el aviso DLinear. **Se mantiene `drift_full`
+como envío.** No subir la red.
+
 ## Ideas para seguir batiendo (Fase 2)
 1. **Exógenas para A y D** (donde se gana/pierde): `HistGradientBoostingRegressor`
    prediciendo **retorno log acumulado** a 252d con lags de macro/network (árboles

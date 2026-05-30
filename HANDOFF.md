@@ -39,8 +39,13 @@
 - 🔧 Arreglado: la columna `Date` del envío se preserva como TEXTO `YYYY-MM-DD`
   (sin hora), igual que el template. También: template ahora dentro del repo
   (`template/`), backtest fiel a 252 días naturales, validación ordena por MACRO.
-- ▶️ **Siguiente:** subir `drift_full`. Luego Fase 2 = exógenas (GBM de retornos) para
-  A y D. Reproducir: `python -m src.run_baselines` y `python -m src.predict`.
+- 🧪 **Fase 3 HECHA** (`src/deep_models.py`, ver `experiments/deep_20260530.md`):
+  DLinear + Transformer (positional encoding), forecast directo del drift, walk-forward
+  fiel. **Las redes NO baten a `drift_full`** (empate técnico, +0,4%; pierden en el
+  origen volátil). Lección DLinear confirmada → **se mantiene `drift_full`**.
+- ▶️ **Siguiente:** subir `drift_full`. Si se insiste en mejorar A/D: exógenas
+  (macro/network) con GBM de retornos, NO más red. Reproducir:
+  `python -m src.run_baselines` · `python -m src.predict` · `python -m src.deep_models`.
 
 ---
 

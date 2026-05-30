@@ -1,11 +1,11 @@
-# Nucleo (suficiente para baselines + envio)
-numpy
+# Nucleo (suficiente para baselines + envio: src.run_baselines / src.predict)
+numpy<2          # CRITICO: torch en Mac Intel (x86_64) solo tiene wheels <=2.2.2,
+                 # compiladas contra numpy 1.x. Con numpy>=2 el puente torch<->numpy
+                 # casca ("Could not infer dtype of numpy.float32"). En otras
+                 # plataformas con torch>=2.3 se puede quitar el pin.
 pandas
 scikit-learn
-openpyxl        # leer/escribir la plantilla .xlsx
+openpyxl         # leer/escribir la plantilla .xlsx
 
-# Fase 2 (modelos con features). OJO: con Python 3.14 puede que no haya wheels;
-# si fallan, usar HistGradientBoostingRegressor de scikit-learn (ya incluido).
-# lightgbm
-# statsmodels
-# torch
+# Fase 3 (redes neuronales + Transformer: src.deep_models)
+torch            # en Mac Intel resuelve a 2.2.2 (ultima wheel disponible)
