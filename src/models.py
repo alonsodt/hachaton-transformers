@@ -51,6 +51,35 @@ def drift_log(hist, future_dates, window=252) -> np.ndarray:
     return np.exp(last_log + slope * _days_ahead(hist, future_dates))
 
 
+def drift_full(hist, future_dates) -> np.ndarray:
+    """Drift log-lineal con la HISTORIA COMPLETA (43 anos).
+
+    GANADOR del backtest fiel (252 dias naturales, 24 origenes): MACRO 27.6k vs
+    32.3k de naive_flat (-14,5%), y -12% en los origenes recientes. Bate a naive en
+    A en 17/24 origenes y en D en 16/24.
+
+    POR QUE FUNCIONA donde drift_252 fallaba: la pendiente con ventana corta es
+    ruidosa y se dispara (extrapola un tramo caliente a 252d). Con TODA la historia
+    la pendiente es la tasa estructural (~+12,8%/ano en A y D) -> estable y, por
+    construccion, el estimador de minimo RMSE para una serie con drift positivo
+    (E[P_t+h] = P_t * exp(mu*h) > ultimo valor). naive_flat ignora ese drift y
+    queda sesgado a la baja justo en A y D, que pesan el 85% del leaderboard.
+    """
+    return drift_log(hist, future_dates, window=len(hist))
+
+
+def blend_full(hist, future_dates, w=0.7) -> np.ndarray:
+    """Cobertura: media geometrica de drift_full (w) y flat (1-w).
+
+    Algo peor que drift_full en el backtest pero mas robusto si 2029 corrige (un
+    crash penaliza a quien extrapola la subida). w=0.7 conserva la mayor parte de
+    la mejora cediendo un poco a cambio de menor cola de riesgo.
+    """
+    d = np.log(drift_full(hist, future_dates))
+    f = np.log(naive_flat(hist, future_dates))
+    return np.exp(w * d + (1 - w) * f)
+
+
 def damped_drift_log(hist, future_dates, window=252, phi=0.98) -> np.ndarray:
     """Tendencia amortiguada (Gardner): la pendiente se atenua con el horizonte.
     eff(h) = slope * (phi*(1-phi^h)/(1-phi)) sobre el ranking diario h=1..H."""
@@ -72,13 +101,15 @@ def blend_flat_drift(hist, future_dates, window=252, w=0.5) -> np.ndarray:
     return np.exp(w * np.log(d) + (1 - w) * np.log(f))
 
 
-# Registro a evaluar en el walk-forward
+# Registro a evaluar en el walk-forward.
+# Orden = de mejor a peor segun el backtest fiel por RMSE ABSOLUTO (la metrica real).
 REGISTRY = {
-    "naive_flat": naive_flat,
-    "drift_log_252": lambda h, f: drift_log(h, f, window=252),
+    "drift_full": drift_full,                                    # <- MEJOR (envio actual)
+    "blend_full_0.7": lambda h, f: blend_full(h, f, w=0.7),      # cobertura anti-crash
+    "blend_full_0.5": lambda h, f: blend_full(h, f, w=0.5),
+    "naive_flat": naive_flat,                                    # suelo de referencia (1a subida)
     "drift_log_756": lambda h, f: drift_log(h, f, window=756),
     "damped_252_098": lambda h, f: damped_drift_log(h, f, window=252, phi=0.98),
-    "damped_252_095": lambda h, f: damped_drift_log(h, f, window=252, phi=0.95),
     "ewma_30": ewma_flat,
-    "blend_flat_drift252": lambda h, f: blend_flat_drift(h, f, window=252, w=0.5),
+    "drift_log_252": lambda h, f: drift_log(h, f, window=252),   # peor: ventana corta se dispara
 }

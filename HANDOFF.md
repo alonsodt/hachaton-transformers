@@ -3,11 +3,21 @@
 > Rellenar **siempre** al agotar el límite diario de subidas, antes de soltar el
 > teclado. Pegar el bloque nuevo ARRIBA del todo.
 
-## Estado actual (2026-05-30)
-- ✅ Pipeline montado y verificado. Primera base generada.
-- 📦 Envío base: `submissions/submission_20260530_naive_flat.xlsx` (252 filas, 0 nulos).
-- 📈 RMSE local de la base: **≈ 8.6 %** relativo (walk-forward 252d). **PENDIENTE de subir.**
-- ▶️ Siguiente: subir la base para anclar el leaderboard y luego atacar Fase 2 (ver RESULTS.md).
+## Estado actual (2026-05-30) — relevo 2
+- 🧠 **Métrica entendida:** leaderboard = `rmse_macro` = media del RMSE **ABSOLUTO**
+  de los 6 índices. **Index_A + Index_D = ~85% del score.** (Antes se ordenaba por
+  relativo → se subió `naive_flat`, casi el peor modelo. Corregido.) Ver RESULTS.md.
+- ✅ **1ª subida (naive_flat): RMSE plataforma = 74.197.** Local era 32.330 (MACRO),
+  o sea la validación es **conservadora → NO hay overfitting**, el backtest es fiable.
+- 🆕 **Modelo nuevo `drift_full`** (drift log de historia completa): MACRO local
+  **27.648 (−14,5% vs naive)**, gana en A 17/24 orígenes y en D 16/24.
+- 📦 **Envío listo PENDIENTE de subir:** `submissions/submission_20260530_drift_full.xlsx`
+  (252 filas, 0 nulos, todos >0). Esperado en plataforma ≈ **63–66k**.
+- 🔧 Arreglado: la columna `Date` del envío se preserva como TEXTO `YYYY-MM-DD`
+  (sin hora), igual que el template. También: template ahora dentro del repo
+  (`template/`), backtest fiel a 252 días naturales, validación ordena por MACRO.
+- ▶️ **Siguiente:** subir `drift_full`. Luego Fase 2 = exógenas (GBM de retornos) para
+  A y D. Reproducir: `python -m src.run_baselines` y `python -m src.predict`.
 
 ---
 

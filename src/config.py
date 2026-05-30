@@ -24,12 +24,14 @@ F_TEST_MACRO = DATA_RAW / "test_macro_factors.csv"
 F_TEST_NET = DATA_RAW / "test_network_metrics.csv"
 F_TEST_NEWS = DATA_RAW / "test_news.csv"
 
-# Plantilla de envio (.xlsx, hoja 'submission')
-TEMPLATE_XLSX = Path(
-    r"C:\Users\alons\Downloads"
-    r"\hackaton_miax_prediccion_prod_rmse_20260530_v1_submission_template.xlsx"
-)
+# Plantilla de envio (.xlsx, hoja 'submission').
+# Se versiona DENTRO del repo (template/) para que el pipeline sea reproducible en
+# las 3 maquinas sin depender de rutas locales (antes apuntaba a un C:\Users\... ).
+TEMPLATE_XLSX = ROOT / "template" / "submission_template.xlsx"
 TEMPLATE_SHEET = "submission"
+# La columna Date del template viene como TEXTO 'YYYY-MM-DD' (formato '@', sin hora).
+# Al escribir el envio NO se debe reconvertir a datetime: hay que preservar esa
+# cadena tal cual para que la clave de fecha case exactamente con el corrector.
 
 DATE_COL = "Date"
 TARGETS = ["Index_A", "Index_B", "Index_C", "Index_D", "Index_E", "Index_F"]
@@ -40,6 +42,13 @@ SUB_COL = {t: f"pred_index_{t.split('_')[1].lower()}" for t in TARGETS}
 HORIZON_START = "2028-12-13"
 HORIZON_END = "2029-08-21"
 
-# Backtest: el bloque de validacion = mismo tamano que el test real (~252 dias)
-BACKTEST_HORIZON = 252
-BACKTEST_N_ORIGINS = 5
+# Backtest fiel: el test real abarca 252 dias NATURALES (no habiles). Validamos
+# sobre ventanas de 252 dias naturales hacia atras, replicando exactamente la
+# estructura del envio. Mas origenes = estimacion mas estable del leaderboard.
+BACKTEST_HORIZON_DAYS = 252   # dias naturales (calendario), igual que la plantilla
+BACKTEST_N_ORIGINS = 24
+
+# METRICA DEL LEADERBOARD (verificado contra la 1a subida):
+#   rmse_macro = media del RMSE ABSOLUTO de los 6 indices.
+#   Index_A + Index_D concentran ~85% de la puntuacion -> hay que optimizar el
+#   RMSE ABSOLUTO (no el relativo) y vigilar A y D por encima de todo.

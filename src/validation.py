@@ -1,12 +1,17 @@
-"""Validacion walk-forward de origen movil — replica el test real (bloque de 252d).
+"""Validacion FIEL al test real — replica la estructura exacta del envio.
 
-Por cada indice y cada origen: entrenar hasta T, predecir el bloque de H fechas
-SIGUIENTES de una vez (forecast directo, no a 1 dia), y medir RMSE contra el real.
-Reportamos por indice y el promedio entre indices (que es lo que aproxima el
-leaderboard si la metrica promedia columnas).
+El test abarca 252 dias NATURALES (2028-12-13 -> 2029-08-21). Por eso validamos
+sobre ventanas de 252 dias naturales hacia atras: por cada origen T0 entrenamos
+con todo hasta T0 y predecimos los dias habiles que caen en (T0, T0+252d] de una
+sola vez (forecast directo, no recursivo). Asi el backtest mide LO MISMO que se
+puntua, evitando el sesgo de validar sobre 252 dias habiles (~1 ano, mas drift).
 
-Regla anti-overfitting: un modelo solo es 'mejor' si baja el RMSE medio SIN
-disparar la desviacion entre origenes (consistencia).
+METRICA = la del leaderboard: RMSE ABSOLUTO medio entre los 6 indices (MACRO).
+Ojo: NO usamos RMSE relativo para rankear. El leaderboard es absoluto y lo dominan
+Index_A e Index_D (~85%); ordenar por relativo llevo a subir el peor modelo (naive).
+
+Regla anti-overfitting: un modelo solo es 'mejor' si baja el MACRO absoluto SIN
+empeorar A/D ni disparar la dispersion entre origenes (consistencia).
 """
 from __future__ import annotations
 
@@ -23,40 +28,48 @@ def rmse(a, b) -> float:
     return float(np.sqrt(np.mean((a - b) ** 2)))
 
 
-def walk_forward_series(series: pd.Series, fn, horizon: int, n_origins: int) -> list[float]:
-    """RMSEs de un modelo sobre una serie, en ventanas no solapadas hacia atras."""
-    n = len(series)
+def _origins(last_date: pd.Timestamp, horizon_days: int, n: int) -> list[pd.Timestamp]:
+    """Fechas de corte T0, separadas `horizon_days` dias naturales hacia atras."""
+    return [last_date - pd.Timedelta(days=horizon_days * (i + 1)) for i in range(n)]
+
+
+def walk_forward_series(series: pd.Series, fn, horizon_days: int,
+                        origins: list[pd.Timestamp]) -> list[float]:
+    """RMSEs de un modelo sobre una serie, ventana de `horizon_days` dias naturales."""
     out = []
-    for i in range(n_origins):
-        val_end = n - i * horizon
-        val_start = val_end - horizon
-        if val_start < max(horizon, 252):  # historia minima para entrenar
-            break
-        hist = series.iloc[:val_start]
-        actual = series.iloc[val_start:val_end]
-        pred = fn(hist, actual.index)
-        out.append(rmse(actual.to_numpy(), pred))
+    for t0 in origins:
+        hist = series.loc[:t0]
+        fut = series.loc[t0 + pd.Timedelta(days=1): t0 + pd.Timedelta(days=horizon_days)]
+        if len(hist) < 504 or len(fut) < 50:  # historia y ventana minimas
+            continue
+        out.append(rmse(fut.to_numpy(), fn(hist, fut.index)))
     return out
 
 
-def evaluate_all(horizon: int = C.BACKTEST_HORIZON,
+def evaluate_all(horizon_days: int = C.BACKTEST_HORIZON_DAYS,
                  n_origins: int = C.BACKTEST_N_ORIGINS) -> pd.DataFrame:
-    """Tabla: modelo x indice (RMSE medio) + columna promedio y std media."""
+    """Tabla: modelo x indice (RMSE absoluto medio) + MACRO + MACRO de recientes.
+
+    MACRO        = media del RMSE absoluto de los 6 indices en TODOS los origenes.
+    MACRO_recent = lo mismo en los 4 origenes mas recientes (regimen mas parecido
+                   al test 2028-2029); util para detectar modelos que solo ganan en
+                   el pasado lejano.
+    """
     idx = D.load_indices()
+    origins = _origins(idx.index.max(), horizon_days, n_origins)
+    n_recent = 4
     rows = []
     for name, fn in M.REGISTRY.items():
-        per_index_mean = {}
-        per_index_std = {}
+        mean_all, mean_rec, std_all = {}, {}, {}
         for t in C.TARGETS:
-            rmses = walk_forward_series(idx[t].dropna(), fn, horizon, n_origins)
-            per_index_mean[t] = np.mean(rmses) if rmses else np.nan
-            per_index_std[t] = np.std(rmses) if rmses else np.nan
+            rmses = walk_forward_series(idx[t].dropna(), fn, horizon_days, origins)
+            mean_all[t] = np.mean(rmses) if rmses else np.nan
+            mean_rec[t] = np.mean(rmses[:n_recent]) if rmses else np.nan
+            std_all[t] = np.std(rmses) if rmses else np.nan
         row = {"modelo": name}
-        row.update({t: per_index_mean[t] for t in C.TARGETS})
-        row["RMSE_medio"] = np.mean(list(per_index_mean.values()))
-        # RMSE relativo medio (normalizado por nivel) -> comparacion justa entre indices
-        rel = [per_index_mean[t] / idx[t].iloc[-1] for t in C.TARGETS]
-        row["RMSE_rel_medio"] = float(np.mean(rel))
+        row.update({t: mean_all[t] for t in C.TARGETS})
+        row["A+D"] = mean_all["Index_A"] + mean_all["Index_D"]
+        row["MACRO"] = float(np.mean(list(mean_all.values())))
+        row["MACRO_recent"] = float(np.mean(list(mean_rec.values())))
         rows.append(row)
-    df = pd.DataFrame(rows).sort_values("RMSE_rel_medio").reset_index(drop=True)
-    return df
+    return pd.DataFrame(rows).sort_values("MACRO").reset_index(drop=True)

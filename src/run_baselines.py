@@ -2,9 +2,10 @@
 
     python -m src.run_baselines
 
-La tabla se ordena por RMSE relativo medio (normalizado por el nivel de cada
-indice) porque los 6 indices estan a escalas muy distintas (10^4 a 10^6) y el
-RMSE absoluto lo dominarian Index_A/D. Tambien mostramos el RMSE absoluto medio.
+Ordena por MACRO = RMSE ABSOLUTO medio entre los 6 indices, que es EXACTAMENTE lo
+que puntua el leaderboard (verificado contra la 1a subida: rmse_macro = media de
+los 6 RMSE absolutos). Index_A e Index_D pesan ~85%, por eso mostramos tambien la
+columna A+D y el MACRO de los origenes recientes (regimen mas parecido al test).
 """
 from __future__ import annotations
 
@@ -18,16 +19,15 @@ from .validation import evaluate_all
 
 def main() -> None:
     table = evaluate_all()
-    pd.set_option("display.width", 200)
-    pd.set_option("display.float_format", lambda x: f"{x:,.2f}")
+    pd.set_option("display.width", 220)
+    pd.set_option("display.float_format", lambda x: f"{x:,.0f}")
 
-    show = table[["modelo", "RMSE_medio", "RMSE_rel_medio"]].copy()
-    show["RMSE_rel_medio"] = (show["RMSE_rel_medio"] * 100).round(3).astype(str) + "%"
-    print("\n=== Ranking baselines (walk-forward 252d) ===")
+    show = table[["modelo", "Index_A", "Index_D", "A+D", "MACRO", "MACRO_recent"]]
+    print("\n=== Ranking baselines (backtest fiel 252 dias naturales, RMSE ABSOLUTO) ===")
     print(show.to_string(index=False))
 
     best = table.iloc[0]["modelo"]
-    print(f"\nMEJOR baseline (RMSE relativo): {best}")
+    print(f"\nMEJOR modelo (MACRO absoluto = metrica del leaderboard): {best}")
 
     C.EXPERIMENTS.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
