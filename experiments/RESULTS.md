@@ -31,7 +31,8 @@ Además: la validación local es **conservadora** (naive local A≈268k vs plata
 
 | Modelo | Index_A | Index_D | A+D | MACRO | MACRO recientes | Veredicto |
 |--------|--------:|--------:|----:|------:|----------------:|-----------|
-| **drift_full** | 66.952 | 73.096 | 140.048 | **27.648** | **94.861** | ✅ **MEJOR** — drift log historia completa |
+| **drift_blend_5y_0.7** | 66.668 | 72.722 | 139.390 | **27.554** | **94.787** | ✅ **NUEVO MEJOR** — drift estructural + 30% régimen 5y |
+| drift_full | 66.952 | 73.096 | 140.048 | 27.648 | 94.861 | drift log historia completa (envío 2º, ya validado) |
 | blend_full_0.7 | 69.590 | 75.727 | 145.318 | 28.489 | 98.251 | cobertura anti-crash |
 | damped_252_098 | 73.503 | 80.057 | 153.560 | 30.349 | 101.191 | |
 | naive_flat | 79.638 | 85.393 | 165.032 | 32.330 | 108.146 | suelo (1ª subida) |
@@ -50,6 +51,21 @@ drift positivo, el óptimo de RMSE es `E[Pₜ₊ₕ]=Pₜ·exp(μh) > último va
 |-------|-------|-----------------|--------------------|----------|-----------------|-------|
 | 2026-05-30 | (auto) | `naive_flat` | 32.330 | ✅ sí | **74.197** | 1ª base. Métrica equivocada (relativo) |
 | 2026-05-30 | nosotros | `drift_full` | **27.648** | ⬜ pendiente | — | `submissions/submission_20260530_drift_full.xlsx`. Esperado ≈ 63–66k |
+| 2026-05-30 | nosotros | `drift_blend_5y_0.7` | **27.554** | ⬜ pendiente | — | Calibración A/D: drift estructural + 30% régimen 5y. Mejora limpia (A, D, MACRO y recent ↓) pero **marginal (−0,3%)**. `submissions/submission_20260530_drift_blend_5y_0.7.xlsx` |
+
+### Calibración de drift A/D (Fase 2) — conclusión
+
+Mezclar la tasa estructural (43 años) con la del régimen reciente, ancladas al
+último precio: `slope = w·full + (1−w)·recent`. Barrido en `src.run_baselines`:
+
+- **Ganador: `drift_blend_5y_0.7`** (ventana 5y, 70% estructural). Bate a drift_full
+  en A, D, MACRO **y** MACRO_recent → cumple la regla anti-overfit.
+- Patrón **monótono e interpretable** (no es suerte): 5y_0.7 > 5y_0.5 > full; las
+  variantes de 3 años o recent-puro **empeoran** (extrapolan el tramo caliente).
+- Mezcla óptima por-índice = 27.472 (solo −0,3% extra) metiendo ewma/blend en
+  B/C/F → **descartada por overfit** en índices que pesan 6%.
+- **Veredicto operativo:** mejora real pero pequeña. NO merece un intento dedicado;
+  llevarla como 2º envío en lugar de drift_full (es gratis y estrictamente mejor).
 
 ## Ideas para seguir batiendo (Fase 2)
 1. **Exógenas para A y D** (donde se gana/pierde): `HistGradientBoostingRegressor`

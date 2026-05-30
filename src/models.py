@@ -68,6 +68,43 @@ def drift_full(hist, future_dates) -> np.ndarray:
     return drift_log(hist, future_dates, window=len(hist))
 
 
+def _log_slope_recent_days(hist: pd.Series, days: int) -> float:
+    """OLS de log(precio) ~ dias sobre la ventana de los ultimos `days` NATURALES.
+
+    A diferencia de `_log_slope_per_day` (ventana en nº de puntos), aqui la ventana
+    es por CALENDARIO real, asi el 'reciente' es comparable entre origenes del
+    backtest (cada origen tiene distinta densidad de puntos). Mide la tasa del
+    regimen reciente, que en A y D (~50-60%/ano) va MUY por encima de la
+    estructural de 43 anos (~17%/ano).
+    """
+    cutoff = hist.index[-1] - pd.Timedelta(days=days)
+    h = hist.loc[cutoff:]
+    if len(h) < 30:  # ventana demasiado corta -> cae a la pendiente plena
+        return _log_slope_per_day(hist, len(hist))[1]
+    d = np.array([(t - h.index[-1]).days for t in h.index], dtype=float)
+    y = np.log(h.to_numpy())
+    dm = d - d.mean()
+    return float((dm * (y - y.mean())).sum() / (dm**2).sum())
+
+
+def drift_blend(hist, future_dates, recent_days: int = 5 * 365,
+                w_full: float = 0.5) -> np.ndarray:
+    """Drift log-lineal con pendiente = mezcla de la ESTRUCTURAL (43 anos) y la del
+    REGIMEN RECIENTE (ventana `recent_days` naturales).
+
+    POR QUE. `drift_full` usa solo la tasa de 43 anos (17%/ano en A y D) y se queda
+    corto si el momento reciente (50-60%/ano) continua; un drift de ventana corta
+    pura se dispara y explota el RMSE (ya visto con drift_log_252). La mezcla busca
+    el punto medio: capturar parte de la aceleracion reciente sin extrapolar un
+    tramo caliente entero. Ancla en el ultimo precio observado (no en el ajuste).
+    """
+    _, slope_full = _log_slope_per_day(hist, len(hist))
+    slope_recent = _log_slope_recent_days(hist, recent_days)
+    slope = w_full * slope_full + (1.0 - w_full) * slope_recent
+    last_log = float(np.log(hist.iloc[-1]))
+    return np.exp(last_log + slope * _days_ahead(hist, future_dates))
+
+
 def blend_full(hist, future_dates, w=0.7) -> np.ndarray:
     """Cobertura: media geometrica de drift_full (w) y flat (1-w).
 
@@ -105,6 +142,13 @@ def blend_flat_drift(hist, future_dates, window=252, w=0.5) -> np.ndarray:
 # Orden = de mejor a peor segun el backtest fiel por RMSE ABSOLUTO (la metrica real).
 REGISTRY = {
     "drift_full": drift_full,                                    # <- MEJOR (envio actual)
+    # --- drift calibrado: estructural x regimen reciente (Fase 2, foco A y D) ---
+    "drift_blend_5y_0.7": lambda h, f: drift_blend(h, f, recent_days=5*365, w_full=0.7),
+    "drift_blend_5y_0.5": lambda h, f: drift_blend(h, f, recent_days=5*365, w_full=0.5),
+    "drift_blend_3y_0.7": lambda h, f: drift_blend(h, f, recent_days=3*365, w_full=0.7),
+    "drift_blend_3y_0.5": lambda h, f: drift_blend(h, f, recent_days=3*365, w_full=0.5),
+    "drift_recent_5y": lambda h, f: drift_blend(h, f, recent_days=5*365, w_full=0.0),
+    "drift_recent_3y": lambda h, f: drift_blend(h, f, recent_days=3*365, w_full=0.0),
     "blend_full_0.7": lambda h, f: blend_full(h, f, w=0.7),      # cobertura anti-crash
     "blend_full_0.5": lambda h, f: blend_full(h, f, w=0.5),
     "naive_flat": naive_flat,                                    # suelo de referencia (1a subida)
